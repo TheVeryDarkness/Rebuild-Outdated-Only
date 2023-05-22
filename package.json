@@ -1,0 +1,19 @@
+{
+  "name": "rebuild-outdated-only",
+  "version": "0.0.0",
+  "description": "",
+  "bin": "index.js",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "prepublish": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.2.1",
+    "commander": "^10.0.1",
+    "typescript": "^5.0.4"
+  }
+}
