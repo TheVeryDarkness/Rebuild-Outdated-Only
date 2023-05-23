@@ -1,9 +1,9 @@
 import { program } from "commander";
-import { appendFile, stat } from "node:fs/promises";
-import { exec } from "node:child_process";
+import { execSync } from "node:child_process";
 import path from "node:path";
-import { promisify } from "node:util";
 import { exit } from "node:process";
+import { existsSync, statSync } from "node:fs";
+import { assert } from "node:console";
 
 type Task = {
   command: string;
@@ -15,42 +15,49 @@ type Config = {
   tasks: Task[];
 };
 
-async function getTimeStamp(path: string) {
-  const status = await stat(path);
+function getTimeStamp(path: string): null | number {
+  if (!existsSync(path)) return null;
+  const status = statSync(path);
   if (!status.isFile) console.error(`${path} is not a file.`);
   return status.mtime.valueOf();
 }
-async function getTimeStamps(paths: string[]) {
-  try {
-    return Promise.all(paths.map(getTimeStamp));
-  } catch (e) {
-    return null;
-  }
+function getTimeStamps(paths: string[]) {
+  const stamps = paths.map(getTimeStamp);
+  return stamps.includes(null) ? null : (stamps as number[]);
 }
-async function runTask(task: Task): Promise<boolean> {
+enum TaskResult {
+  SUCCESS = 0,
+  UP_TO_DATE,
+  FAILED,
+  LACK_DEPENDENCIES,
+}
+function succeed(result: TaskResult) {
+  return result == TaskResult.SUCCESS || result == TaskResult.UP_TO_DATE;
+}
+function upToDate(result: TaskResult) {
+  return result == TaskResult.UP_TO_DATE;
+}
+function runTask(task: Task): TaskResult {
   const input = task.input;
   const output = task.output;
-  const tsInput = await getTimeStamps(input);
-  if (!tsInput) return false;
-  const tsOutput = await getTimeStamps(output);
+  const tsInput = getTimeStamps(input);
+  if (!tsInput) return TaskResult.LACK_DEPENDENCIES;
+  const tsOutput = getTimeStamps(output);
   // console.log(tsInput, input);
   // console.log(tsOutput, output);
   if (!tsOutput || Math.max(...tsInput) >= Math.min(...tsOutput)) {
     try {
-      const child = await promisify(exec)(task.command);
-      const out = child.stdout;
-      const err = child.stderr;
-      out && process.stdout.write(out);
-      err && process.stderr.write(err);
+      const buf = execSync(task.command);
+      buf && process.stdout.write(buf);
     } catch (err) {
       console.error(err);
-      await appendFile("build.err", JSON.stringify(err, null, 2));
-      return false;
+      return TaskResult.FAILED;
     }
+    return TaskResult.SUCCESS;
   } else {
     // console.log("Skipped.");
+    return TaskResult.UP_TO_DATE;
   }
-  return true;
 }
 
 program
@@ -62,17 +69,22 @@ program
     const abs = path.isAbsolute(input)
       ? input
       : path.join(process.cwd(), input);
-    const mod = (await import("file:///" + abs)).default;
+    const imported = await import("file:///" + abs);
+    const mod = imported.default;
     const cfg: Config = typeof mod === "function" ? mod() : mod;
     // console.log(JSON.stringify(cfg, null, 1));
     const final = cfg.final;
     const tasks = cfg.tasks;
     const built = new Set<string>();
+    assert(tasks instanceof Array);
     for (var i = 0; i < tasks.length; ++i) {
-      const runable = await Promise.all(tasks.map(runTask));
-      if (!runable.includes(false)) {
-        // All done
-        if (i == 0) process.stdout.write("Already up to date.");
+      const results = tasks.map(runTask);
+      if (i == 0 && results.every(upToDate)) {
+        console.log("Already up to date.");
+        return;
+      }
+      if (results.every(succeed)) {
+        console.log("Succeed.");
         return;
       }
     }
