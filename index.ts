@@ -1,9 +1,7 @@
-import { program } from "commander";
+import { Command, program } from "commander";
 import { execSync } from "node:child_process";
 import path from "node:path";
-import { exit } from "node:process";
 import { existsSync, statSync } from "node:fs";
-import { assert } from "node:console";
 
 type Task = {
   command: string;
@@ -11,83 +9,188 @@ type Task = {
   output: string[];
 };
 type Config = {
-  final: string;
+  final: string[];
   tasks: Task[];
 };
 
-function getTimeStamp(path: string): null | number {
-  if (!existsSync(path)) return null;
-  const status = statSync(path);
-  if (!status.isFile) console.error(`${path} is not a file.`);
-  return status.mtime.valueOf();
-}
-function getTimeStamps(paths: string[]) {
-  const stamps = paths.map(getTimeStamp);
-  return stamps.includes(null) ? null : (stamps as number[]);
-}
-enum TaskResult {
-  SUCCESS = 0,
-  UP_TO_DATE,
-  FAILED,
-  LACK_DEPENDENCIES,
-}
-function succeed(result: TaskResult) {
-  return result == TaskResult.SUCCESS || result == TaskResult.UP_TO_DATE;
-}
-function upToDate(result: TaskResult) {
-  return result == TaskResult.UP_TO_DATE;
-}
-function runTask(task: Task): TaskResult {
-  const input = task.input;
-  const output = task.output;
-  const tsInput = getTimeStamps(input);
-  if (!tsInput) return TaskResult.LACK_DEPENDENCIES;
-  const tsOutput = getTimeStamps(output);
-  // console.log(tsInput, input);
-  // console.log(tsOutput, output);
-  if (!tsOutput || Math.max(...tsInput) >= Math.min(...tsOutput)) {
-    try {
-      const buf = execSync(task.command);
-      buf && process.stdout.write(buf);
-    } catch (err) {
-      console.error(err);
-      return TaskResult.FAILED;
+async function main(program: Command) {
+  const TRACING_UNEXISTED = false;
+  const TRACING_SKIPPING = false;
+  const TRACING_UP_TO_DATE = false;
+  const TRACING_TASK = false;
+  const TRACING_SUCCESS = false;
+  const TRACING_TIME_STAMPS = false;
+  const now = Date.now().valueOf();
+  function getTimeStamp(path: Readonly<string>): null | number {
+    if (!existsSync(path)) {
+      if (TRACING_UNEXISTED) console.log(`${path} does not exist.`);
+      return null;
     }
-    return TaskResult.SUCCESS;
-  } else {
-    // console.log("Skipped.");
-    return TaskResult.UP_TO_DATE;
+    const status = statSync(path);
+    if (!status.isFile) {
+      throw new Error(`${path} is not a file.`);
+    }
+    return status.mtime.valueOf();
   }
-}
+  function getTimeStampForced(
+    path: Readonly<string>,
+    error: Readonly<string>
+  ): never | number {
+    const t = getTimeStamp(path);
+    if (!t) throw new Error(error);
+    return t;
+  }
 
+  function checkTimeStamps(task: Task) {
+    const t = JSON.stringify(task);
+    const timeInput = task.input.map((f) =>
+      getTimeStampForced(f, `Input of "${t}" does not exist.`)
+    );
+    const timeOutput = task.output.map((f) =>
+      getTimeStampForced(f, `Output of "${t}" does not exist.`)
+    );
+    const latestInput = Math.max(...timeInput);
+    const earliestOutput = Math.min(...timeOutput);
+    if (latestInput >= earliestOutput)
+      throw new Error(`File time seems not to be refreshed. Check "${t}".`);
+  }
+  function recordTimeStamp(tasks: ReadonlyArray<Task>) {
+    const timeStamps: Map<string, Date> = new Map();
+    tasks.forEach((task: Readonly<Task>) => {
+      const I = new Map<string, Date>();
+      const O = new Map<string, Date>();
+      function r(arr: ReadonlyArray<string>, map: Map<string, Date>) {
+        return arr.forEach((i) => {
+          if (existsSync(i)) {
+            const t = statSync(i).mtime;
+            if (t) timeStamps.set(i, t), map.set(i, t);
+          }
+        });
+      }
+      r(task.input, I);
+      r(task.output, O);
+      // console.log(I, O);
+    });
+    console.log(timeStamps);
+  }
+  function buildOutputTable(
+    tasks: ReadonlyArray<Task>
+  ): Map<string, Readonly<Task>> {
+    const map = new Map<string, Readonly<Task>>();
+    for (const task of tasks) {
+      for (const output of task.output) {
+        if (map.has(output)) {
+          throw new Error(
+            `Multiple tasks generating the same output "${output}".`
+          );
+        }
+        map.set(output, task);
+      }
+    }
+    return map;
+  }
+  var runnedTask = new Set<Task>();
+  function runTask(
+    target: Readonly<string>,
+    tasks: ReadonlyMap<string, Readonly<Task>>
+  ): boolean {
+    const task = tasks.get(target);
+    if (!task) {
+      if (existsSync(target)) {
+        // Existed
+        if (TRACING_SKIPPING)
+          console.log(`${target} exists and has no rule to build. Skipped.`);
+        return false;
+      }
+      throw new Error(`No task to build "${target}".`);
+    }
+
+    if (runnedTask.has(task)) {
+      return false;
+    }
+    if (TRACING_TASK) {
+      console.log(task);
+    }
+    try {
+      const input: ReadonlyArray<string> = task.input;
+      const output: ReadonlyArray<string> = task.output;
+      const timeInput = input.map((i): number => {
+        runTask(i, tasks);
+        const I = getTimeStamp(i);
+        if (!I) {
+          throw new Error(
+            `Running ${JSON.stringify(tasks.get(i))} can't build "${i}".`
+          );
+        }
+
+        return I;
+      });
+      const latestInput = Math.max(...timeInput);
+      const timeOutput = output.map((i): number => {
+        return getTimeStamp(i) || 0;
+      });
+      const earliestOutput = Math.min(...timeOutput);
+      if (latestInput >= earliestOutput) {
+        try {
+          const buf = execSync(task.command, { encoding: "utf8" });
+          buf && process.stdout.write(buf);
+        } catch (err: any) {
+          console.error(`Error during running "${task.command}":`);
+          // if (err?.stdout) console.error(err?.stdout);
+          // if (err?.stderr) console.error(err?.stderr);
+          throw err;
+        }
+        checkTimeStamps(task);
+        runnedTask.add(task);
+        if (TRACING_SUCCESS) {
+          console.log(`Built "${target}" with "${task.command}".`);
+        }
+        return true;
+      } else {
+        if (TRACING_UP_TO_DATE) {
+          console.log(
+            `Already up to date. "${
+              input[timeInput.findIndex((i) => i == latestInput)]
+            }:${latestInput}" < "${
+              output[timeOutput.findIndex((i) => i == earliestOutput)]
+            }":${earliestOutput}.`
+          );
+        }
+        return false;
+        // Up to date
+      }
+    } catch (error) {
+      console.error(`During building ${target} with "${task.command}".`);
+      throw error;
+    }
+  }
+
+  const input: string = program.getOptionValue("input");
+  const abs = path.isAbsolute(input) ? input : path.join(process.cwd(), input);
+  const imported = await import("file:///" + abs);
+  const mod = imported.default;
+  const cfg: Config = typeof mod === "function" ? mod() : mod;
+  // console.log(JSON.stringify(cfg, null, 1));
+  const final = cfg.final;
+  if (!final || !(final instanceof Array) || final.length === 0) {
+    throw new Error(`Configuration has no final: ${JSON.stringify(cfg)}`);
+  }
+  const tasks = cfg.tasks;
+  if (TRACING_TIME_STAMPS) recordTimeStamp(tasks);
+  const mapping = buildOutputTable(tasks);
+
+  const runned = final.map((f) => {
+    const task = mapping.get(f);
+    if (!task) {
+      throw new Error(`No task to build "${f}" in final outputs.`);
+    }
+    return runTask(f, mapping);
+  });
+  if (TRACING_TIME_STAMPS) recordTimeStamp(tasks);
+  if (runned.every((x) => x == false)) console.log(`Already up to date.`);
+}
 program
   .version("0.0.0")
-  .option("-i, --input <input>", "Input decription file.", "build.js")
-  .parseAsync(process.argv)
-  .then(async (program) => {
-    const input = program.getOptionValue("input");
-    const abs = path.isAbsolute(input)
-      ? input
-      : path.join(process.cwd(), input);
-    const imported = await import("file:///" + abs);
-    const mod = imported.default;
-    const cfg: Config = typeof mod === "function" ? mod() : mod;
-    // console.log(JSON.stringify(cfg, null, 1));
-    const final = cfg.final;
-    const tasks = cfg.tasks;
-    const built = new Set<string>();
-    assert(tasks instanceof Array);
-    for (var i = 0; i < tasks.length; ++i) {
-      const results = tasks.map(runTask);
-      if (i == 0 && results.every(upToDate)) {
-        console.log("Already up to date.");
-        return;
-      }
-      if (results.every(succeed)) {
-        console.log("Succeed.");
-        return;
-      }
-    }
-    console.error("Failed to build.");
-    exit(-1);
-  });
+  .option("-i, --input <input>", "Input configuration file.", "build.js")
+  .parse(process.argv);
+main(program);
