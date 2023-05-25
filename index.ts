@@ -128,7 +128,7 @@ async function main(program: Command) {
       });
       const earliestOutput = Math.min(...timeOutput);
       if (latestInput >= earliestOutput) {
-        if (runTask.has(task)) {
+        if (tasksBeenRun.has(task)) {
           console.error("Task", task, "is re-run.");
         }
         try {
@@ -141,7 +141,7 @@ async function main(program: Command) {
           throw err;
         }
         checkTimeStamps(task);
-        runTask.add(task);
+        tasksBeenRun.add(task);
         if (TRACING_SUCCESS) {
           console.log(`Built`, target, `with`, task.command, `.`);
         }
