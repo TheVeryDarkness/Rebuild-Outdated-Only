@@ -105,9 +105,6 @@ async function main(program: Command) {
       throw new Error(`No task to build "${target}".`);
     }
 
-    if (runnedTask.has(task)) {
-      return false;
-    }
     if (TRACING_TASK) {
       console.log(task);
     }
@@ -131,6 +128,9 @@ async function main(program: Command) {
       });
       const earliestOutput = Math.min(...timeOutput);
       if (latestInput >= earliestOutput) {
+        if (runnedTask.has(task)) {
+          console.error("Task", task, "is re-runned.");
+        }
         try {
           const buf = execSync(task.command, { encoding: "utf8" });
           buf && process.stdout.write(buf);
@@ -143,7 +143,7 @@ async function main(program: Command) {
         checkTimeStamps(task);
         runnedTask.add(task);
         if (TRACING_SUCCESS) {
-          console.log(`Built "${target}" with "${task.command}".`);
+          console.log(`Built`, target, `with`, task.command, `.`);
         }
         return true;
       } else {
