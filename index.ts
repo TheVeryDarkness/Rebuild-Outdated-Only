@@ -89,7 +89,7 @@ async function main(program: Command) {
     }
     return map;
   }
-  var tasksBeenRun = new Set<Task>();
+  const tasksBeenRun = new Set<Task>();
   function runTask(
     target: Readonly<string>,
     tasks: ReadonlyMap<string, Readonly<Task>>
