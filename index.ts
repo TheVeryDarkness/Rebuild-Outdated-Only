@@ -89,7 +89,7 @@ async function main(program: Command) {
     }
     return map;
   }
-  var runnedTask = new Set<Task>();
+  var tasksBeenRun = new Set<Task>();
   function runTask(
     target: Readonly<string>,
     tasks: ReadonlyMap<string, Readonly<Task>>
@@ -128,8 +128,8 @@ async function main(program: Command) {
       });
       const earliestOutput = Math.min(...timeOutput);
       if (latestInput >= earliestOutput) {
-        if (runnedTask.has(task)) {
-          console.error("Task", task, "is re-runned.");
+        if (runTask.has(task)) {
+          console.error("Task", task, "is re-run.");
         }
         try {
           const buf = execSync(task.command, { encoding: "utf8" });
@@ -141,7 +141,7 @@ async function main(program: Command) {
           throw err;
         }
         checkTimeStamps(task);
-        runnedTask.add(task);
+        runTask.add(task);
         if (TRACING_SUCCESS) {
           console.log(`Built`, target, `with`, task.command, `.`);
         }
@@ -179,7 +179,7 @@ async function main(program: Command) {
   if (TRACING_TIME_STAMPS) recordTimeStamp(tasks);
   const mapping = buildOutputTable(tasks);
 
-  const runned = final.map((f) => {
+  const beenRun = final.map((f) => {
     const task = mapping.get(f);
     if (!task) {
       throw new Error(`No task to build "${f}" in final outputs.`);
@@ -187,7 +187,7 @@ async function main(program: Command) {
     return runTask(f, mapping);
   });
   if (TRACING_TIME_STAMPS) recordTimeStamp(tasks);
-  if (runned.every((x) => x == false)) console.log(`Already up to date.`);
+  if (beenRun.every((x) => x == false)) console.log(`Already up to date.`);
 }
 program
   .version("0.0.0")
