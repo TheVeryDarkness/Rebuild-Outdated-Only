@@ -1,6 +1,6 @@
 {
   "name": "rebuild-outdated-only",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "",
   "private": false,
   "files": [
@@ -18,10 +18,10 @@
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^20.2.1",
-    "commander": "^10.0.1",
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "chalk": "^5.2.0"
+    "chalk": "^5.2.0",
+    "commander": "^10.0.1"
   }
 }

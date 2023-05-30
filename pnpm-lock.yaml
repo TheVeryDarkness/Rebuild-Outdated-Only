@@ -4,14 +4,14 @@ dependencies:
   chalk:
     specifier: ^5.2.0
     version: 5.2.0
+  commander:
+    specifier: ^10.0.1
+    version: 10.0.1
 
 devDependencies:
   '@types/node':
     specifier: ^20.2.1
     version: 20.2.3
-  commander:
-    specifier: ^10.0.1
-    version: 10.0.1
   typescript:
     specifier: ^5.0.4
     version: 5.0.4
@@ -30,7 +30,7 @@ packages:
   /commander@10.0.1:
     resolution: {integrity: sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==}
     engines: {node: '>=14'}
-    dev: true
+    dev: false
 
   /typescript@5.0.4:
     resolution: {integrity: sha512-cW9T5W9xY37cc+jfEnaUvX91foxtHkza3Nw3wkoF4sSlKn0MONdkdEndig/qPBWXNkmplh3NzayQzCiHM4/hqw==}
