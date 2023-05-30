@@ -166,31 +166,37 @@ async function main(program: Command) {
   }
 
   const input: string = program.getOptionValue("input");
-  const abs = path.isAbsolute(input) ? input : path.join(process.cwd(), input);
-  const imported = await import("file:///" + abs);
-  const mod = imported.default;
-  const cfg: Config = typeof mod === "function" ? mod() : mod;
-  // console.log(JSON.stringify(cfg, null, 1));
-  const final = cfg.final;
-  if (!final || !(final instanceof Array) || final.length === 0) {
-    throw new Error(`Configuration has no final: ${JSON.stringify(cfg)}`);
-  }
-  const tasks = cfg.tasks;
-  if (TRACING_TIME_STAMPS) recordTimeStamp(tasks);
-  const mapping = buildOutputTable(tasks);
-
-  const beenRun = final.map((f) => {
-    const task = mapping.get(f);
-    if (!task) {
-      throw new Error(`No task to build "${f}" in final outputs.`);
+  const dirs: string[] = program.getOptionValue("directories");
+  for (const dir of dirs) {
+    const abs_dir = path.isAbsolute(dir) ? dir : path.join(process.cwd(), dir);
+    const abs = path.join(abs_dir, input);
+    const imported = await import("file:///" + abs);
+    const mod = imported.default;
+    const cfg: Config = typeof mod === "function" ? mod() : mod;
+    // console.log(JSON.stringify(cfg, null, 1));
+    const final = cfg.final;
+    if (!final || !(final instanceof Array) || final.length === 0) {
+      throw new Error(`Configuration has no final: ${JSON.stringify(cfg)}`);
     }
-    return runTask(f, mapping);
-  });
-  if (TRACING_TIME_STAMPS) recordTimeStamp(tasks);
-  if (beenRun.every((x) => x == false)) console.log(`Already up to date.`);
+    const tasks = cfg.tasks;
+    if (TRACING_TIME_STAMPS) recordTimeStamp(tasks);
+    const mapping = buildOutputTable(tasks);
+
+    const beenRun = final.map((f) => {
+      const task = mapping.get(f);
+      if (!task) {
+        throw new Error(`No task to build "${f}" in final outputs.`);
+      }
+      return runTask(f, mapping);
+    });
+    if (TRACING_TIME_STAMPS) recordTimeStamp(tasks);
+    if (beenRun.every((x) => x == false))
+      console.log(`Project ${dir} already up to date.`);
+  }
 }
 program
   .version("0.0.0")
-  .option("-i, --input <input>", "Input configuration file.", "build.js")
+  .option("-i, --input <input>", "Name of configuration file.", "build.js")
+  .option("-d, --directory [dirs...]", "Paths of projects root.", ["./"])
   .parse(process.argv);
 main(program);
