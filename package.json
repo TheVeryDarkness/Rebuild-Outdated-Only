@@ -2,6 +2,9 @@
   "name": "rebuild-outdated-only",
   "version": "0.0.0",
   "description": "",
+  "files": [
+    "index.js"
+  ],
   "bin": "index.js",
   "type": "module",
   "main": "index.js",
