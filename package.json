@@ -11,13 +11,14 @@
   "main": "index.js",
   "readme": "README.md",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc -p tsconfig.json --noEmit && esbuild --bundle --minify --tree-shaking=true --charset=utf8 --packages=external --platform=node --format=esm index.ts --outfile=index.js"
   },
   "keywords": [],
   "author": "pnpm-is-so-great",
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^20.2.1",
+    "esbuild": "^0.17.19",
     "typescript": "^5.0.4"
   },
   "dependencies": {
