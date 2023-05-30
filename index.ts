@@ -140,8 +140,6 @@ async function main(program: Command) {
           buf && process.stdout.write(buf);
         } catch (err: any) {
           console.error(`Error during running "${task.command}":`);
-          // if (err?.stdout) console.error(err?.stdout);
-          // if (err?.stderr) console.error(err?.stderr);
           throw err;
         }
         checkTimeStamps(task);
@@ -171,9 +169,11 @@ async function main(program: Command) {
 
   const input: string = program.getOptionValue("input");
   const dirs: string[] = program.getOptionValue("directory");
+  const cwd = process.cwd();
   for (const dir of dirs) {
-    const abs_dir = path.isAbsolute(dir) ? dir : path.join(process.cwd(), dir);
+    const abs_dir = path.isAbsolute(dir) ? dir : path.join(cwd, dir);
     const abs = path.join(abs_dir, input);
+    chdir(abs_dir);
     const imported = await import("file:///" + abs);
     const mod = imported.default;
     if (!mod) console.error(`No default export in ${abs}.`);
@@ -193,19 +193,17 @@ async function main(program: Command) {
     const mapping = buildOutputTable(tasks);
 
     const beenRun = final.map((f) => {
-      const cwd = process.cwd();
-      chdir(abs_dir);
       const task = mapping.get(f);
       if (!task) {
         throw new Error(`No task to build "${f}" in final outputs.`);
       }
       const res = runTask(f, mapping);
-      chdir(cwd);
       return res;
     });
     if (TRACING_TIME_STAMPS) recordTimeStamp(tasks);
     if (beenRun.every((x) => x == false))
       console.log(`Project ${dir} already up to date.`);
+    chdir(cwd);
   }
 }
 program
