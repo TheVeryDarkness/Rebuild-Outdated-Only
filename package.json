@@ -9,12 +9,12 @@
   "bin": "index.js",
   "type": "module",
   "main": "index.js",
+  "readme": "README.md",
   "scripts": {
-    "build": "tsc",
-    "prepublish": "tsc"
+    "build": "tsc"
   },
   "keywords": [],
-  "author": "",
+  "author": "pnpm-is-so-great",
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^20.2.1",
