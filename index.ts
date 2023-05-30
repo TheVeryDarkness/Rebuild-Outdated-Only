@@ -2,6 +2,7 @@ import { Command, program } from "commander";
 import { execSync } from "node:child_process";
 import path from "node:path";
 import { existsSync, statSync } from "node:fs";
+import { chdir } from "node:process";
 
 type Task = {
   command: string;
@@ -132,7 +133,10 @@ async function main(program: Command) {
           console.error("Task", task, "is re-run.");
         }
         try {
-          const buf = execSync(task.command, { encoding: "utf8" });
+          const buf = execSync("pnpm exec " + task.command, {
+            encoding: "utf8",
+            stdio: "inherit",
+          });
           buf && process.stdout.write(buf);
         } catch (err: any) {
           console.error(`Error during running "${task.command}":`);
@@ -166,14 +170,20 @@ async function main(program: Command) {
   }
 
   const input: string = program.getOptionValue("input");
-  const dirs: string[] = program.getOptionValue("directories");
+  const dirs: string[] = program.getOptionValue("directory");
   for (const dir of dirs) {
     const abs_dir = path.isAbsolute(dir) ? dir : path.join(process.cwd(), dir);
     const abs = path.join(abs_dir, input);
     const imported = await import("file:///" + abs);
     const mod = imported.default;
+    if (!mod) console.error(`No default export in ${abs}.`);
     const cfg: Config = typeof mod === "function" ? mod() : mod;
     // console.log(JSON.stringify(cfg, null, 1));
+    /*
+    function pre(s: string) {
+      return path.join(abs_dir, s);
+    }
+    */
     const final = cfg.final;
     if (!final || !(final instanceof Array) || final.length === 0) {
       throw new Error(`Configuration has no final: ${JSON.stringify(cfg)}`);
@@ -183,11 +193,15 @@ async function main(program: Command) {
     const mapping = buildOutputTable(tasks);
 
     const beenRun = final.map((f) => {
+      const cwd = process.cwd();
+      chdir(abs_dir);
       const task = mapping.get(f);
       if (!task) {
         throw new Error(`No task to build "${f}" in final outputs.`);
       }
-      return runTask(f, mapping);
+      const res = runTask(f, mapping);
+      chdir(cwd);
+      return res;
     });
     if (TRACING_TIME_STAMPS) recordTimeStamp(tasks);
     if (beenRun.every((x) => x == false))
