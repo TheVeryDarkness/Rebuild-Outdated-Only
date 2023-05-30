@@ -3,6 +3,7 @@ import { execSync } from "node:child_process";
 import path from "node:path";
 import { existsSync, statSync } from "node:fs";
 import { chdir } from "node:process";
+import { version } from "./package.json";
 
 type Task = {
   command: string;
@@ -207,7 +208,7 @@ async function main(program: Command) {
   }
 }
 program
-  .version("0.0.0")
+  .version(version)
   .option("-i, --input <input>", "Name of configuration file.", "build.js")
   .option("-d, --directory [dirs...]", "Paths of projects root.", ["./"])
   .parse(process.argv);
