@@ -2,6 +2,7 @@
   "name": "rebuild-outdated-only",
   "version": "0.0.0",
   "description": "",
+  "private": false,
   "files": [
     "index.js"
   ],
